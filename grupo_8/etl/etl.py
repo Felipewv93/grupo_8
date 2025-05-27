@@ -21,122 +21,98 @@ class ETL(AbstractETL):
         super().__init__(origem, destino)
         self.engine = create_engine(destino)
         self.Session = sessionmaker(bind=self.engine)
-        self.dataframes = {}
+        self._dados_transformados = {}
 
     def extract(self):
-        self.dataframes = pd.read_excel(self.origem, sheet_name=None)
+        self._dados_extraidos = pd.read_excel(self.origem, sheet_name=None)
 
 
     def transform(self):
 
-        df = self.dataframes['Banco']
+        df = self._dados_extraidos['Banco']
         df['id_proprietario'] = pd.to_numeric(df['id_proprietario'], errors='coerce').astype('Int64')
-        self.dataframes['Banco'] = df
+        self._dados_transformados['Banco'] = df
 
-        df = self.dataframes['Caminhão']
+        df = self._dados_extraidos['Caminhão']
         df['cod_veiculo'] = pd.to_numeric(df['cod_veiculo'], errors='coerce').astype('Int64')
-        self.dataframes['Caminhão'] = df
+        self._dados_transformados['Caminhão'] = df
 
-        df = self.dataframes['Carro']
-        df['cod_carro'] = pd.to_numeric(df['cod_veiculo'], errors='coerce').astype('Int64')
-        self.dataframes['Carro'] = df
+        df = self._dados_extraidos['Carro']
+        df['cod_veiculo'] = pd.to_numeric(df['cod_veiculo'], errors='coerce').astype('Int64')
+        self._dados_transformados['Carro'] = df
 
-        df = self.dataframes['Dono']
+        df = self._dados_extraidos['Dono']
         df['id_proprietario'] = pd.to_numeric(df['id_proprietario'], errors='coerce').astype('Int64')
         df['cod_veiculo'] = pd.to_numeric(df['cod_veiculo'], errors='coerce').astype('Int64')
         df['data_compra'] = pd.to_datetime(df['data_compra']).dt.date
-        self.dataframes['Dono'] = df
+        self._dados_transformados['Dono'] = df
 
-        df = self.dataframes['Empresa']
+        df = self._dados_extraidos['Empresa']
         df['id_proprietario'] = pd.to_numeric(df['id_proprietario'], errors='coerce').astype('Int64')
-        self.dataframes['Empresa'] = df
+        self._dados_transformados['Empresa'] = df
 
-        df = self.dataframes['Pessoa']
+        df = self._dados_extraidos['Pessoa']
         df['id_proprietario'] = pd.to_numeric(df['id_proprietario'], errors='coerce').astype('Int64')
-        self.dataframes['Pessoa'] = df
+        self._dados_transformados['Pessoa'] = df
 
-        df = self.dataframes['Proprietário']
+        df = self._dados_extraidos['Proprietário']
         df['id_proprietario'] = pd.to_numeric(df['id_proprietario'], errors='coerce').astype('Int64')
-        self.dataframes['Proprietário'] = df
+        self._dados_transformados['Proprietário'] = df
 
-        df = self.dataframes['Veículo_Registrado']
+        df = self._dados_extraidos['Veículo_Registrado']
         df['cod_veiculo'] = pd.to_numeric(df['cod_veiculo'], errors='coerce').astype('Int64')
-        self.dataframes['Veículo_Registrado'] = df
+        self._dados_transformados['Veículo_Registrado'] = df
 
 
+    
     def load(self):
         session = self.Session()
         try:
-
-            for _, row in self.dataframes['Proprietário'].iterrows():
-                obj = Proprietario(id_proprietario=int(row['id_proprietario']))
-                session.add(obj)
+            lista_proprietario = []
+            lista_proprietario.extend(Proprietario.from_dataframe(self._dados_transformados['Proprietário']))
+            session.add_all(lista_proprietario)
             session.commit()
 
-            for _, row in self.dataframes['Veículo_Registrado'].iterrows():
-                obj = VeiculoRegistrado(cod_veiculo=int(row['cod_veiculo']), placa=row['placa'])
-                session.add(obj)
+        # Veiculo registrado
+            lista_veiculo_registrado = []
+            lista_veiculo_registrado.extend(VeiculoRegistrado.from_dataframe(self._dados_transformados['Veículo_Registrado']))
+            session.add_all(lista_veiculo_registrado)
             session.commit()
 
-            for _, row in self.dataframes['Banco'].iterrows():
-                obj = Banco(
-                    bnome=row['bnome'],
-                    bendereco=row['bendereco'],
-                    id_proprietario=row['id_proprietario'] if pd.notna(row['id_proprietario']) else None
-                )
-                session.add(obj)
+            # Banco
+            lista_banco = []
+            lista_banco.extend(Banco.from_dataframe(self._dados_transformados['Banco']))
+            session.add_all(lista_banco)
             session.commit()
 
-            for _, row in self.dataframes['Empresa'].iterrows():
-                obj = Empresa(
-                    enome=row['enome'],
-                    eendereco=row['eendereco'],
-                    id_proprietario=row['id_proprietario'] if pd.notna(row['id_proprietario']) else None
-                )
-                session.add(obj)
+            # Empresa
+            lista_empresa = []
+            lista_empresa.extend(Empresa.from_dataframe(self._dados_transformados['Empresa']))
+            session.add_all(lista_empresa)
             session.commit()
 
-            for _, row in self.dataframes['Pessoa'].iterrows():
-                obj = Pessoa(
-                    cpf=row['cpf'],
-                    num_carteira_motorista=row['num_carteira_motorista'],
-                    nome=row['nome'],
-                    endereco=row['endereco'],
-                    id_proprietario=row['id_proprietario'] if pd.notna(row['id_proprietario']) else None
-                )
-                session.add(obj)
+            # Pessoa
+            lista_pessoa = []
+            lista_pessoa.extend(Pessoa.from_dataframe(self._dados_transformados['Pessoa']))
+            session.add_all(lista_pessoa)
             session.commit()
 
-            for _, row in self.dataframes['Caminhão'].iterrows():
-                obj = Caminhao(
-                    cod_veiculo=row['cod_veiculo'],
-                    marca_caminhao=row['marca_caminhao'],
-                    modelo_caminhao=row['modelo_caminhao'],
-                    capacidade_peso=row['capacidade_peso'],
-                    ano_caminhao=row['ano_caminhao']
-                )
-                session.add(obj)
+            # Caminhão      
+            lista_caminhao = []
+            lista_caminhao.extend(Caminhao.from_dataframe(self._dados_transformados['Caminhão']))
+            session.add_all(lista_caminhao)
             session.commit()
 
-            for _, row in self.dataframes['Carro'].iterrows():
-                obj = Carro(
-                    cod_veiculo=row['cod_veiculo'],
-                    estilo=row['estilo'],
-                    marca_carro=row['marca_carro'],
-                    modelo_carro=row['modelo_carro'],
-                    ano_carro=row['ano_carro']
-                )
-                session.add(obj)
+            # Carro
+            lista_carro = []
+            lista_carro.extend(Carro.from_dataframe(self._dados_transformados['Carro']))
+            session.add_all(lista_carro)
             session.commit()
-
-            for _, row in self.dataframes['Dono'].iterrows():
-                obj = Dono(
-                    id_proprietario=row['id_proprietario'],
-                    cod_veiculo=row['cod_veiculo'],
-                    data_compra=row['data_compra'],
-                    alienado_ou_regular=row['alienado_ou_regular']
-                )
-                session.add(obj)
+            
+            # Dono
+            lista_dono = []
+            lista_dono.extend(Dono.from_dataframe(self._dados_transformados['Dono']))
+            session.add_all(lista_dono)
             session.commit()
 
             print("Dados carregados com sucesso.")
