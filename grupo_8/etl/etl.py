@@ -2,8 +2,21 @@ import pandas as pd
 from datetime import datetime
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError, OperationalError, DataError
 from sqlalchemy.orm import sessionmaker
+import logging
+import traceback
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('etl_errors.log'),
+        logging.StreamHandler()
+    ]
+)
+
+logger = logging.getLogger('ETL')
 
 from etl.abstract_etl import AbstractETL
 from modelos.tb_proprietario import Proprietario
@@ -24,44 +37,79 @@ class ETL(AbstractETL):
         self._dados_transformados = {}
 
     def extract(self):
-        self._dados_extraidos = pd.read_excel(self.origem, sheet_name=None)
-
+        try:
+            self._dados_extraidos = pd.read_excel(self.origem, sheet_name=None)
+        except FileNotFoundError as e:
+            logger.error(f"[EXTRACTION ERROR] Arquivo não encontrado: {e}")
+            logger.error(traceback.format_exc())
+            raise
+        except pd.errors.EmptyDataError as e:
+            logger.error(f"[EXTRACTION ERROR] Arquivo vazio ou sem dados: {e}")
+            logger.error(traceback.format_exc())
+            raise
+        except ValueError as e:
+            logger.error(f"[EXTRACTION ERROR] Erro na leitura dos dados: {e}")
+            logger.error(traceback.format_exc())
+            raise
+        except Exception as e:
+            logger.error(f"[EXTRACTION ERROR] Erro inesperado: {e}")
+            logger.error(traceback.format_exc())
+            raise
 
     def transform(self):
 
-        df = self._dados_extraidos['Banco']
-        df['id_proprietario'] = pd.to_numeric(df['id_proprietario'], errors='coerce').astype('Int64')
-        self._dados_transformados['Banco'] = df
+        try:
 
-        df = self._dados_extraidos['Caminhão']
-        df['cod_veiculo'] = pd.to_numeric(df['cod_veiculo'], errors='coerce').astype('Int64')
-        self._dados_transformados['Caminhão'] = df
+            df = self._dados_extraidos['Banco']
+            df['id_proprietario'] = pd.to_numeric(df['id_proprietario'], errors='coerce').astype('Int64')
+            self._dados_transformados['Banco'] = df
 
-        df = self._dados_extraidos['Carro']
-        df['cod_veiculo'] = pd.to_numeric(df['cod_veiculo'], errors='coerce').astype('Int64')
-        self._dados_transformados['Carro'] = df
+            df = self._dados_extraidos['Caminhão']
+            df['cod_veiculo'] = pd.to_numeric(df['cod_veiculo'], errors='coerce').astype('Int64')
+            self._dados_transformados['Caminhão'] = df
 
-        df = self._dados_extraidos['Dono']
-        df['id_proprietario'] = pd.to_numeric(df['id_proprietario'], errors='coerce').astype('Int64')
-        df['cod_veiculo'] = pd.to_numeric(df['cod_veiculo'], errors='coerce').astype('Int64')
-        df['data_compra'] = pd.to_datetime(df['data_compra']).dt.date
-        self._dados_transformados['Dono'] = df
+            df = self._dados_extraidos['Carro']
+            df['cod_veiculo'] = pd.to_numeric(df['cod_veiculo'], errors='coerce').astype('Int64')
+            self._dados_transformados['Carro'] = df
 
-        df = self._dados_extraidos['Empresa']
-        df['id_proprietario'] = pd.to_numeric(df['id_proprietario'], errors='coerce').astype('Int64')
-        self._dados_transformados['Empresa'] = df
+            df = self._dados_extraidos['Dono']
+            df['id_proprietario'] = pd.to_numeric(df['id_proprietario'], errors='coerce').astype('Int64')
+            df['cod_veiculo'] = pd.to_numeric(df['cod_veiculo'], errors='coerce').astype('Int64')
+            df['data_compra'] = pd.to_datetime(df['data_compra']).dt.date
+            self._dados_transformados['Dono'] = df
 
-        df = self._dados_extraidos['Pessoa']
-        df['id_proprietario'] = pd.to_numeric(df['id_proprietario'], errors='coerce').astype('Int64')
-        self._dados_transformados['Pessoa'] = df
+            df = self._dados_extraidos['Empresa']
+            df['id_proprietario'] = pd.to_numeric(df['id_proprietario'], errors='coerce').astype('Int64')
+            self._dados_transformados['Empresa'] = df
 
-        df = self._dados_extraidos['Proprietário']
-        df['id_proprietario'] = pd.to_numeric(df['id_proprietario'], errors='coerce').astype('Int64')
-        self._dados_transformados['Proprietário'] = df
+            df = self._dados_extraidos['Pessoa']
+            df['id_proprietario'] = pd.to_numeric(df['id_proprietario'], errors='coerce').astype('Int64')
+            self._dados_transformados['Pessoa'] = df
 
-        df = self._dados_extraidos['Veículo_Registrado']
-        df['cod_veiculo'] = pd.to_numeric(df['cod_veiculo'], errors='coerce').astype('Int64')
-        self._dados_transformados['Veículo_Registrado'] = df
+            df = self._dados_extraidos['Proprietário']
+            df['id_proprietario'] = pd.to_numeric(df['id_proprietario'], errors='coerce').astype('Int64')
+            self._dados_transformados['Proprietário'] = df
+
+            df = self._dados_extraidos['Veículo_Registrado']
+            df['cod_veiculo'] = pd.to_numeric(df['cod_veiculo'], errors='coerce').astype('Int64')
+            self._dados_transformados['Veículo_Registrado'] = df
+
+        except KeyError as e:
+            logger.error(f"[TRANSFORMATION ERROR] Coluna ausente no DataFrame: {e}")
+            logger.error(traceback.format_exc())
+            raise
+        except ValueError as e:
+            logger.error(f"[TRANSFORMATION ERROR] Erro de conversão de tipo: {e}")
+            logger.error(traceback.format_exc())
+            raise
+        except TypeError as e:
+            logger.error(f"[TRANSFORMATION ERROR] Erro de tipo: {e}")
+            logger.error(traceback.format_exc())
+            raise
+        except Exception as e:
+            logger.error(f"[TRANSFORMATION ERROR] Erro inesperado: {e}")
+            logger.error(traceback.format_exc())
+            raise
 
 
     
@@ -119,5 +167,25 @@ class ETL(AbstractETL):
         except SQLAlchemyError as e:
             session.rollback()
             print(f"Erro ao carregar dados: {e}")
+        except IntegrityError as e:
+            session.rollback()
+            logger.error(f"[LOADING ERROR] Violação de integridade: {e}")
+            logger.error(traceback.format_exc())
+            raise
+        except OperationalError as e:
+            session.rollback()
+            logger.error(f"[LOADING ERROR] Erro operacional: {e}")
+            logger.error(traceback.format_exc())
+            raise
+        except DataError as e:
+            session.rollback()
+            logger.error(f"[LOADING ERROR] Erro de dados: {e}")
+            logger.error(traceback.format_exc())
+            raise
+        except Exception as e:
+            session.rollback()
+            logger.error(f"[LOADING ERROR] Erro inesperado: {e}")
+            logger.error(traceback.format_exc())
+            raise
         finally:
             session.close()
